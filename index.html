@@ -26,4 +26,140 @@ const books=[
 {id:12,title:'Kozmos',author:'Carl Sagan',genre:['Bilim ve teknoloji'],age:'15+',pages:384,desc:'Evreni ve bilimin insanlığın düşüncesindeki yerini anlatan popüler bilim kitabı.',meb:'Resmî MEB listesi doğrulanmadı',digital:'İzinsiz PDF kullanılmamalı',buy:'https://www.google.com/search?q=Carl+Sagan+Kozmos+kitap+sat%C4%B1n+al',color:'#c9d8ef'}];
 let profile=JSON.parse(localStorage.getItem('uk_profile')||'null')||{grade:'Lise',genres:['Macera','Bilim ve teknoloji'],habit:'Düzenli',length:'Kısa',goal:10};let readIds=JSON.parse(localStorage.getItem('uk_read')||'[]');let account=JSON.parse(localStorage.getItem('uk_account')||'null');function openQuiz(){document.getElementById('quizModal').classList.add('open')}function openAccount(){document.getElementById('accountModal').classList.add('open')}function closeModal(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.choices').forEach(g=>g.addEventListener('click',e=>{let b=e.target.closest('.choice');if(!b)return;if(g.dataset.multi==='true')b.classList.toggle('active');else{g.querySelectorAll('.choice').forEach(x=>x.classList.remove('active'));b.classList.add('active')}}));function choice(g){let e=document.querySelector('.choices[data-group="'+g+'"]');return e.dataset.multi==='true'?[...e.querySelectorAll('.choice.active')].map(x=>x.dataset.value):e.querySelector('.choice.active')?.dataset.value}function saveQuiz(){profile={grade:choice('grade'),genres:choice('genres'),habit:choice('habit'),length:choice('length'),goal:Number(choice('goal'))||10};localStorage.setItem('uk_profile',JSON.stringify(profile));closeModal('quizModal');renderBooks();document.getElementById('kesfet').scrollIntoView({behavior:'smooth'})}function score(b){let s=b.genre.filter(g=>profile.genres.includes(g)).length*4;if(profile.length==='Kısa'&&b.pages<=160)s+=3;if(profile.length==='Uzun'&&b.pages>250)s+=3;if(profile.habit==='Yeni başlıyorum'&&b.pages<=100)s+=3;return s}function renderBooks(){let q=(document.getElementById('search').value||'').toLocaleLowerCase('tr'),f=document.getElementById('filter').value;let arr=books.filter(b=>(!q||(b.title+' '+b.author).toLocaleLowerCase('tr').includes(q))&&(!f||b.genre.includes(f))).sort((a,b)=>score(b)-score(a));document.getElementById('bookGrid').innerHTML=arr.map(b=>`<article class="bookcard"><div class="bookcover" style="background:${b.color}"><small>${b.author}</small><span>${b.title}</span><small>UYGUN KİTABIM</small></div><div class="bookinfo"><h3>${b.title}</h3><div class="muted" style="font-size:12px">${b.author}</div><div class="pills" style="margin-top:8px">${b.genre.map(g=>`<span class="pill">${g}</span>`).join('')}<span class="pill">${b.age}</span></div><p>${b.desc}</p><div class="status">● ${b.meb}</div><p class="notice"><b>Dijital erişim:</b> ${b.digital}</p><button class="smallbtn" onclick="toggleRead(${b.id})">${readIds.includes(b.id)?'✓ Okundu':'Okudum olarak işaretle'}</button><a class="smallbtn" href="${b.buy}" target="_blank" rel="noopener">Satın alma seçenekleri ↗</a></div></article>`).join('')||'<p>Bu filtrelerle kitap bulunamadı.</p>';updateProgress()}function toggleRead(id){readIds=readIds.includes(id)?readIds.filter(x=>x!==id):[...readIds,id];localStorage.setItem('uk_read',JSON.stringify(readIds));renderBooks()}function updateProgress(){let n=readIds.length,goal=Number(profile.goal)||10;document.getElementById('readCount').textContent=n;document.getElementById('goalCount').textContent=goal;document.getElementById('progressBar').style.width=Math.min(100,n/goal*100)+'%';document.getElementById('progressText').textContent=n>=10?`Tebrikler! ${Math.floor(n/10)*10} kitaplık unvan eşiğine ulaştın. Sonraki unvan için ${(Math.floor(n/10)+1)*10-n} kitap kaldı.`:`İlk unvanına ${10-n} kitap kaldı. Her tamamladığın kitabı işaretle.`}function saveAccount(){let name=document.getElementById('accountName').value.trim();if(!name){alert('Lütfen bir kullanıcı adı yaz.');return}account={name};localStorage.setItem('uk_account',JSON.stringify(account));closeModal('accountModal');showAccount()}function showAccount(){if(account){document.getElementById('dashboard').classList.add('show');document.getElementById('userName').textContent=account.name;document.getElementById('userMeta').textContent=readIds.length+' kitap tamamlandı · Demo hesabı bu tarayıcıda saklanır.'}}function logout(){account=null;localStorage.removeItem('uk_account');document.getElementById('dashboard').classList.remove('show')}showAccount();renderBooks();
+</script><script>
+/* Kişiselleştirilmiş öneriler, unvanlar ve gerçek kapak araması */
+(function () {
+  const rankList = [
+    { count: 0, name: 'Kitap Filizi', icon: '🌱', desc: 'Yeni başlayanlar için' },
+    { count: 10, name: 'Sayfa Gezgini', icon: '🧭', desc: 'Düzenli okumaya adım atanlar' },
+    { count: 20, name: 'Satır Arası Kaşifi', icon: '🔎', desc: 'Kitapları inceleyenler' },
+    { count: 30, name: 'Kitap Kurdu', icon: '🐛', desc: 'İyi bir okuma alışkanlığı' },
+    { count: 40, name: 'Kütüphane Muhafızı', icon: '🏛️', desc: 'Çok yönlü ve derin okurlar' },
+    { count: 50, name: 'Kitapların Efendisi / Bilge', icon: '👑', desc: 'Zirve seviye' }
+  ];
+  const normalize = value => String(value || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i').replace(/[^a-z0-9]+/g, ' ').trim();
+  const genreAliases = { 'klasik': 'klasikler', 'gizem ve polisiye': 'gizem', 'tarih ve biyografi': 'biyografi', 'kesif': 'macera' };
+  const wantedGenres = () => (profile.genres || []).map(g => genreAliases[normalize(g)] || normalize(g));
+  const bookGenres = b => (b.genre || []).map(g => genreAliases[normalize(g)] || normalize(g));
+  const ageMin = b => { const m = String(b.age || '').match(/\d+/); return m ? Number(m[0]) : 0; };
+  const gradeMaxAge = grade => ({ 'İlkokul': 10, 'Ortaokul': 14, 'Lise': 18, 'Üniversite': 120 })[grade] || 18;
+  const lengthMatch = b => {
+    if (profile.length === 'Kısa') return Number(b.pages || 0) <= 160;
+    if (profile.length === 'Orta') return Number(b.pages || 0) > 160 && Number(b.pages || 0) <= 280;
+    if (profile.length === 'Uzun') return Number(b.pages || 0) > 280;
+    return true;
+  };
+  function eligibleBooks() {
+    const maxAge = gradeMaxAge(profile.grade);
+    const selected = wantedGenres();
+    let pool = books.filter(b => ageMin(b) <= maxAge);
+    if (selected.length) {
+      const match = pool.filter(b => bookGenres(b).some(g => selected.includes(g)));
+      if (match.length) pool = match;
+    }
+    const matchingLength = pool.filter(lengthMatch);
+    if (matchingLength.length) pool = matchingLength;
+    return pool;
+  }
+  function score(b) {
+    const selected = wantedGenres();
+    let points = bookGenres(b).filter(g => selected.includes(g)).length * 10;
+    if (profile.length === 'Kısa' && Number(b.pages || 0) <= 160) points += 4;
+    if (profile.length === 'Orta' && Number(b.pages || 0) > 160 && Number(b.pages || 0) <= 280) points += 4;
+    if (profile.length === 'Uzun' && Number(b.pages || 0) > 280) points += 4;
+    if (profile.habit === 'Yeni başlıyorum' && Number(b.pages || 0) <= 120) points += 5;
+    if (profile.habit === 'Ara sıra' && Number(b.pages || 0) <= 160) points += 3;
+    if (profile.habit === 'Düzenli' || profile.habit === 'Düzenli okuyorum') points += 2;
+    if (profile.habit === 'Çok okuyorum' && Number(b.pages || 0) > 250) points += 4;
+    if (Number(profile.goal) === 10 && Number(b.pages || 0) <= 160) points += 2;
+    if (Number(profile.goal) === 20 && Number(b.pages || 0) > 160 && Number(b.pages || 0) <= 280) points += 2;
+    if (Number(profile.goal) === 30 && Number(b.pages || 0) > 280) points += 2;
+    return points;
+  }
+  function realCoverUrl(book) {
+    const query = 'intitle:' + book.title + ' inauthor:' + book.author;
+    return fetch('https://www.googleapis.com/books/v1/volumes?q=' + encodeURIComponent(query) + '&langRestrict=tr&printType=books&maxResults=10')
+      .then(response => { if (!response.ok) throw new Error('Kapak araması başarısız'); return response.json(); })
+      .then(data => {
+        const targetTitle = normalize(book.title);
+        const options = (data.items || []).map(item => {
+          const info = item.volumeInfo || {};
+          return { title: info.title || '', publisher: info.publisher || 'Yayınevi belirtilmemiş', date: info.publishedDate || '', url: (info.imageLinks && (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail)) || '' };
+        }).filter(item => item.url && normalize(item.title).includes(targetTitle.slice(0, Math.min(12, targetTitle.length))));
+        options.sort((a, b) => Number(normalize(b.title) === targetTitle) - Number(normalize(a.title) === targetTitle));
+        return options[0] || null;
+      });
+  }
+  const coverCache = {};
+  function loadCover(book, coverNode) {
+    if (!coverNode || coverNode.dataset.coverChecked === 'yes') return;
+    coverNode.dataset.coverChecked = 'yes';
+    coverNode.classList.add('real-cover');
+    if (coverCache[book.id]) return showCover(book, coverNode, coverCache[book.id]);
+    realCoverUrl(book).then(result => {
+      if (!result) throw new Error('Uygun Türkçe kapak bulunamadı');
+      coverCache[book.id] = result;
+      showCover(book, coverNode, result);
+    }).catch(() => {
+      coverNode.replaceChildren();
+      const title = document.createElement('strong'); title.textContent = book.title;
+      const note = document.createElement('small'); note.textContent = 'Türkçe yayınevi kapağı bulunamadı';
+      coverNode.append(title, note);
+    });
+  }
+  function showCover(book, node, cover) {
+    node.replaceChildren();
+    const image = document.createElement('img');
+    image.src = cover.url.replace(/^http:/, 'https:').replace('&edge=curl', '');
+    image.alt = book.title + ' kitap kapağı'; image.loading = 'lazy'; image.referrerPolicy = 'no-referrer';
+    image.onerror = () => { node.replaceChildren(); const title = document.createElement('strong'); title.textContent = book.title; const note = document.createElement('small'); note.textContent = 'Kapak görseli yüklenemedi'; node.append(title, note); };
+    const caption = document.createElement('small'); caption.className = 'cover-publisher'; caption.textContent = cover.publisher + (cover.date ? ' · ' + cover.date : '');
+    node.append(image, caption);
+  }
+  function loadCovers(pool) {
+    pool.forEach(book => document.querySelectorAll('[data-book-cover="' + book.id + '"]').forEach(node => loadCover(book, node)));
+  }
+  function renderBooks() {
+    const searchInput = document.getElementById('search');
+    const filterInput = document.getElementById('filter');
+    const query = (searchInput ? searchInput.value : '').toLocaleLowerCase('tr');
+    const genreFilter = filterInput ? filterInput.value : '';
+    const pool = eligibleBooks().slice().sort((a, b) => score(b) - score(a)).filter(b => {
+      const text = (b.title + ' ' + b.author + ' ' + b.desc).toLocaleLowerCase('tr');
+      const genreOK = !genreFilter || bookGenres(b).includes(normalize(genreAliases[normalize(genreFilter)] || genreFilter));
+      return (!query || text.includes(query)) && genreOK;
+    });
+    const grid = document.getElementById('bookGrid');
+    if (!grid) return;
+    grid.innerHTML = pool.map(b => {
+      const read = readIds.includes(b.id);
+      return `<article class="bookcard"><div class="bookcover real-cover-placeholder" data-book-cover="${b.id}"><strong>${b.title}</strong><small>Türkçe yayınevi kapağı aranıyor…</small></div><div class="bookinfo"><h3>${b.title}</h3><div class="muted" style="font-size:12px">${b.author}</div><div class="pills" style="margin-top:8px">${b.genre.map(g => `<span class="pill">${g}</span>`).join('')}<span class="pill">${b.age}</span><span class="pill">${b.pages} sayfa</span></div><p>${b.desc}</p><div class="status">● ${b.meb}</div><p class="notice"><b>Dijital erişim:</b> ${b.digital}</p><button class="smallbtn" onclick="toggleRead(${b.id})">${read ? '✓ Okundu' : 'Okudum olarak işaretle'}</button><a class="smallbtn" href="${b.buy}" target="_blank" rel="noopener">Satın alma seçenekleri ↗</a></div></article>`;
+    }).join('') || '<p>Bu düzey ve tercihlerle eşleşen kitap bulunamadı. Farklı bir tür veya uzunluk seçmeyi deneyebilirsin.</p>';
+    loadCovers(pool);
+    updateProgress();
+  }
+  function updateProgress() {
+    const count = readIds.length;
+    const goal = Number(profile.goal) || 10;
+    const current = rankList.filter(rank => count >= rank.count).pop() || rankList[0];
+    const next = rankList.find(rank => rank.count > count);
+    const readCount = document.getElementById('readCount');
+    const goalCount = document.getElementById('goalCount');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    if (readCount) readCount.textContent = count;
+    if (goalCount) goalCount.textContent = goal;
+    if (progressBar) progressBar.style.width = Math.min(100, count / goal * 100) + '%';
+    if (progressText) progressText.textContent = next ? `${current.icon} ${current.name} · ${next.count - count} kitapla sıradaki unvan: ${next.name}.` : `${current.icon} ${current.name}! En üst unvana ulaştın.`;
+    const levels = document.querySelector('.levels');
+    if (levels) levels.innerHTML = rankList.map(rank => `<div class="level"><span>${rank.icon}</span>${rank.count === 0 ? 'Başlangıç' : rank.count + ' kitap'}<br>${rank.name}</div>`).join('');
+  }
+  const style = document.createElement('style');
+  style.textContent = '.bookcover.real-cover-placeholder{background:#f0f1ed!important;color:#344238!important;min-height:160px!important;display:flex;flex-direction:column;gap:9px;align-items:center;justify-content:center;text-align:center;padding:10px!important;overflow:hidden}.bookcover.real-cover-placeholder:has(img){background:#f5f5f2!important}.bookcover.real-cover-placeholder img{width:auto;max-width:100%;height:150px;object-fit:contain;box-shadow:0 3px 10px #0002}.bookcover.real-cover-placeholder small{font-size:10px;color:#5b675e;text-align:center}.cover-publisher{font-weight:400!important}.bookcover.real-cover-placeholder strong{font-size:13px;line-height:1.2}@media(max-width:440px){.bookcover.real-cover-placeholder{min-height:125px!important}.bookcover.real-cover-placeholder img{height:115px}}';
+  document.head.appendChild(style);
+  window.renderBooks = renderBooks;
+  window.score = score;
+  window.updateProgress = updateProgress;
+  renderBooks();
+})();
 </script></body></html>
